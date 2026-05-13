@@ -112,10 +112,29 @@
             const itemId = tr.dataset.itemId;
             const qty    = Math.max(0, parseInt(tr.querySelector('.cart-qty').value, 10) || 0);
             if (pending.has(itemId)) clearTimeout(pending.get(itemId));
-            pending.set(itemId, setTimeout(() => {
-                pending.delete(itemId);
-                saveRow(tr, qty);
-            }, 400));
+            const promise = new Promise(resolve => {
+                pending.set(itemId, {
+                    handle: setTimeout(async () => {
+                        pending.delete(itemId);
+                        await saveRow(tr, qty);
+                        resolve();
+                    }, 400),
+                    resolve,
+                    tr,
+                    qty,
+                });
+            });
+            return promise;
+        };
+
+        const flushAllPending = async () => {
+            const tasks = [];
+            for (const [itemId, entry] of pending) {
+                clearTimeout(entry.handle);
+                tasks.push(saveRow(entry.tr, entry.qty).then(() => entry.resolve()));
+            }
+            pending.clear();
+            await Promise.all(tasks);
         };
 
         cartTable.addEventListener('input', e => {
@@ -124,15 +143,57 @@
             scheduleSave(e.target.closest('tr'));
         });
 
+        // Flush immediately when the user blurs the input or presses Enter.
+        cartTable.addEventListener('change', e => {
+            if (!e.target.classList.contains('cart-qty')) return;
+            flushAllPending();
+        });
+
         cartTable.addEventListener('click', e => {
             if (!e.target.classList.contains('cart-remove')) return;
             const tr = e.target.closest('tr');
             tr.querySelector('.cart-qty').value = 0;
             localRecalc();
-            // flush immediately on remove, don't wait for debounce
             const itemId = tr.dataset.itemId;
-            if (pending.has(itemId)) { clearTimeout(pending.get(itemId)); pending.delete(itemId); }
+            if (pending.has(itemId)) {
+                clearTimeout(pending.get(itemId).handle);
+                pending.delete(itemId);
+            }
             saveRow(tr, 0);
+        });
+
+        // If the user clicks Checkout (or any link off this page) while a
+        // save is still queued, wait for it to land before navigating.
+        document.addEventListener('click', async e => {
+            const link = e.target.closest('a');
+            if (!link || !link.href) return;
+            // Same-origin link leaving cart page
+            try {
+                const targetUrl = new URL(link.href, location.href);
+                if (targetUrl.origin !== location.origin) return;
+            } catch (_) { return; }
+            if (pending.size === 0) return;
+
+            e.preventDefault();
+            setStatus('Saving…');
+            await flushAllPending();
+            window.location.href = link.href;
+        }, true);
+
+        // Last-ditch safety: if the page is about to unload with a pending
+        // save, fire it synchronously via sendBeacon so it can't be lost.
+        window.addEventListener('beforeunload', () => {
+            for (const [, entry] of pending) {
+                clearTimeout(entry.handle);
+                const body = new FormData();
+                body.append('csrf',     csrf);
+                body.append('item_id',  entry.tr.dataset.itemId);
+                body.append('quantity', entry.qty);
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon(updateUrl, body);
+                }
+            }
+            pending.clear();
         });
     }
 
