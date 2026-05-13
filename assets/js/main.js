@@ -19,6 +19,35 @@
         if (b) b.textContent = n;
     }
 
+    // ---------- Live cart recalculation ----------
+    const cartTable = document.getElementById('cartTable');
+    if (cartTable) {
+        const fmt   = n => '$' + n.toFixed(2);
+        const subEl = document.getElementById('cartSubtotal');
+        const shpEl = document.getElementById('cartShipping');
+        const totEl = document.getElementById('cartTotal');
+
+        const recalc = () => {
+            let subtotal = 0;
+            cartTable.querySelectorAll('tbody tr').forEach(tr => {
+                const price = parseFloat(tr.dataset.price) || 0;
+                const qty   = Math.max(0, parseInt(tr.querySelector('.cart-qty').value, 10) || 0);
+                const line  = price * qty;
+                const cell  = tr.querySelector('.row-subtotal');
+                if (cell) cell.textContent = fmt(line);
+                subtotal += line;
+            });
+            const shipping = (subtotal > 0 && subtotal < 80) ? 8 : 0;
+            if (subEl) subEl.textContent = fmt(subtotal);
+            if (shpEl) shpEl.textContent = shipping ? fmt(shipping) : 'Free';
+            if (totEl) totEl.textContent = fmt(subtotal + shipping);
+        };
+
+        cartTable.addEventListener('input', e => {
+            if (e.target.classList.contains('cart-qty')) recalc();
+        });
+    }
+
     // ---------- Product gallery ----------
     document.querySelectorAll('.thumbs img').forEach(img => {
         img.addEventListener('click', () => {

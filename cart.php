@@ -62,7 +62,7 @@ include __DIR__ . '/includes/header.php';
         <form method="post">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="update">
-            <table class="cart-table">
+            <table class="cart-table" id="cartTable">
                 <thead>
                     <tr>
                         <th></th><th>Item</th><th>Size</th><th>Price</th>
@@ -71,19 +71,19 @@ include __DIR__ . '/includes/header.php';
                 </thead>
                 <tbody>
                 <?php foreach ($items as $it): ?>
-                    <tr>
+                    <tr data-price="<?= e(number_format((float)$it['price'], 2, '.', '')) ?>">
                         <td><img src="<?= url(e($it['image_1'] ?: 'assets/images/p1.svg')) ?>" alt=""></td>
                         <td><a href="<?= url('product.php?id=' . (int)$it['product_id']) ?>"><?= e($it['name']) ?></a></td>
                         <td><?= e($it['size'] ?: '—') ?></td>
                         <td><?= money((float)$it['price']) ?></td>
                         <td>
-                            <input type="number" class="qty-input" name="qty[<?= (int)$it['id'] ?>]"
+                            <input type="number" class="qty-input cart-qty" name="qty[<?= (int)$it['id'] ?>]"
                                    value="<?= (int)$it['quantity'] ?>" min="0" max="<?= max(1,(int)$it['stock']) ?>">
                         </td>
-                        <td><?= money((float)$it['price'] * (int)$it['quantity']) ?></td>
+                        <td class="row-subtotal">$<?= number_format((float)$it['price'] * (int)$it['quantity'], 2) ?></td>
                         <td>
                             <button type="button" class="btn btn-sm btn-danger"
-                                    onclick="const i=this.closest('tr').querySelector('input[type=number]'); i.value=0; this.form.submit();">
+                                    onclick="const i=this.closest('tr').querySelector('input[type=number]'); i.value=0; i.dispatchEvent(new Event('input',{bubbles:true})); this.form.submit();">
                                 Remove
                             </button>
                         </td>
@@ -100,9 +100,9 @@ include __DIR__ . '/includes/header.php';
                 </div>
                 <div class="cart-totals" style="margin:0">
                     <div class="box">
-                        <div class="row"><span>Subtotal</span><span><?= money($subtotal) ?></span></div>
-                        <div class="row"><span>Shipping</span><span><?= $shipping ? money($shipping) : 'Free' ?></span></div>
-                        <div class="row total"><span>Total</span><span><?= money($total) ?></span></div>
+                        <div class="row"><span>Subtotal</span><span id="cartSubtotal">$<?= number_format($subtotal, 2) ?></span></div>
+                        <div class="row"><span>Shipping</span><span id="cartShipping"><?= $shipping ? '$' . number_format($shipping, 2) : 'Free' ?></span></div>
+                        <div class="row total"><span>Total</span><span id="cartTotal">$<?= number_format($total, 2) ?></span></div>
                         <a href="<?= url('checkout.php') ?>" class="btn" style="display:block;text-align:center;margin-top:1rem">Checkout →</a>
                     </div>
                 </div>
