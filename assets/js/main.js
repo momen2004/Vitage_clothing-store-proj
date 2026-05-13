@@ -19,19 +19,30 @@
         if (b) b.textContent = n;
     }
 
-    // ---------- Live cart recalculation ----------
+    // ---------- Live cart: instant local recalc + debounced server sync ----------
     const cartTable = document.getElementById('cartTable');
     if (cartTable) {
-        const fmt   = n => '$' + n.toFixed(2);
-        const subEl = document.getElementById('cartSubtotal');
-        const shpEl = document.getElementById('cartShipping');
-        const totEl = document.getElementById('cartTotal');
+        const fmt       = n => '$' + n.toFixed(2);
+        const subEl     = document.getElementById('cartSubtotal');
+        const shpEl     = document.getElementById('cartShipping');
+        const totEl     = document.getElementById('cartTotal');
+        const statusEl  = document.getElementById('cartSaveStatus');
+        const updateUrl = cartTable.dataset.updateUrl;
+        const csrf      = cartTable.dataset.csrf;
+        const pending   = new Map();   // itemId -> timeout handle
 
-        const recalc = () => {
+        const setStatus = (text, color) => {
+            if (!statusEl) return;
+            statusEl.textContent = text || '';
+            statusEl.style.color = color || 'var(--muted)';
+        };
+
+        const localRecalc = () => {
             let subtotal = 0;
             cartTable.querySelectorAll('tbody tr').forEach(tr => {
                 const price = parseFloat(tr.dataset.price) || 0;
-                const qty   = Math.max(0, parseInt(tr.querySelector('.cart-qty').value, 10) || 0);
+                const input = tr.querySelector('.cart-qty');
+                const qty   = Math.max(0, parseInt(input.value, 10) || 0);
                 const line  = price * qty;
                 const cell  = tr.querySelector('.row-subtotal');
                 if (cell) cell.textContent = fmt(line);
@@ -43,8 +54,85 @@
             if (totEl) totEl.textContent = fmt(subtotal + shipping);
         };
 
+        const applyServerTotals = data => {
+            if (typeof data.subtotal === 'number' && subEl) subEl.textContent = fmt(data.subtotal);
+            if (typeof data.shipping === 'number' && shpEl) shpEl.textContent = data.shipping ? fmt(data.shipping) : 'Free';
+            if (typeof data.total    === 'number' && totEl) totEl.textContent = fmt(data.total);
+            if (typeof data.cart_count === 'number') {
+                const b = document.getElementById('cartBubble');
+                if (b) b.textContent = data.cart_count;
+            }
+        };
+
+        const removeRow = tr => {
+            tr.style.transition = 'opacity .2s';
+            tr.style.opacity = '0';
+            setTimeout(() => {
+                tr.remove();
+                if (!cartTable.querySelector('tbody tr')) location.reload();
+            }, 200);
+        };
+
+        const saveRow = async (tr, qty) => {
+            const itemId = tr.dataset.itemId;
+            setStatus('Saving…');
+            try {
+                const body = new FormData();
+                body.append('csrf', csrf);
+                body.append('item_id', itemId);
+                body.append('quantity', qty);
+                const res = await fetch(updateUrl, {
+                    method: 'POST',
+                    body,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await res.json();
+                if (!data.ok) {
+                    setStatus(data.error || 'Could not save', 'var(--accent)');
+                    return;
+                }
+                applyServerTotals(data);
+                if (data.removed) {
+                    removeRow(tr);
+                } else if (data.quantity !== qty) {
+                    // server capped it (stock limit) — reflect that
+                    tr.querySelector('.cart-qty').value = data.quantity;
+                    localRecalc();
+                    setStatus('Limited to available stock', 'var(--accent)');
+                    return;
+                }
+                setStatus('Saved ✓', 'var(--leaf)');
+                setTimeout(() => setStatus(''), 1200);
+            } catch (e) {
+                setStatus('Network error', 'var(--accent)');
+            }
+        };
+
+        const scheduleSave = tr => {
+            const itemId = tr.dataset.itemId;
+            const qty    = Math.max(0, parseInt(tr.querySelector('.cart-qty').value, 10) || 0);
+            if (pending.has(itemId)) clearTimeout(pending.get(itemId));
+            pending.set(itemId, setTimeout(() => {
+                pending.delete(itemId);
+                saveRow(tr, qty);
+            }, 400));
+        };
+
         cartTable.addEventListener('input', e => {
-            if (e.target.classList.contains('cart-qty')) recalc();
+            if (!e.target.classList.contains('cart-qty')) return;
+            localRecalc();
+            scheduleSave(e.target.closest('tr'));
+        });
+
+        cartTable.addEventListener('click', e => {
+            if (!e.target.classList.contains('cart-remove')) return;
+            const tr = e.target.closest('tr');
+            tr.querySelector('.cart-qty').value = 0;
+            localRecalc();
+            // flush immediately on remove, don't wait for debounce
+            const itemId = tr.dataset.itemId;
+            if (pending.has(itemId)) { clearTimeout(pending.get(itemId)); pending.delete(itemId); }
+            saveRow(tr, 0);
         });
     }
 
