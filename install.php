@@ -3,26 +3,43 @@
  * One-time installer: creates the database & tables, seeds users.
  * Visit http://localhost/Vitage_clothing-store-proj/install.php once.
  * DELETE this file after install on a real deployment.
+ *
+ * NOTE: we deliberately do NOT include config/db.php here, because that file
+ * connects to the target database — which won't exist on a fresh install.
+ * We only pull the constants in and open our own server-level connection.
  */
 
-require_once __DIR__ . '/config/db.php'; // also tests connection
+// Pull DB_HOST / DB_NAME / DB_USER / DB_PASS without triggering the connection.
+$dbConfig = file_get_contents(__DIR__ . '/config/db.php');
+foreach (['DB_HOST','DB_NAME','DB_USER','DB_PASS'] as $const) {
+    if (preg_match("/define\\(\\s*'$const'\\s*,\\s*'([^']*)'\\s*\\)/", $dbConfig, $m)) {
+        if (!defined($const)) define($const, $m[1]);
+    }
+}
 
 $log = [];
 $ok  = true;
 
 try {
-    // Drop & rebuild schema by executing schema.sql statement-by-statement
+    // Read schema.sql, but override its hard-coded database name to match config/db.php
     $sql = file_get_contents(__DIR__ . '/database/schema.sql');
     if ($sql === false) throw new RuntimeException('schema.sql not found');
 
-    // We connected to a specific DB in db.php; the schema file recreates it.
+    $sql = preg_replace(
+        '/(DROP\s+DATABASE\s+IF\s+EXISTS\s+)\w+/i',     '$1`' . DB_NAME . '`', $sql);
+    $sql = preg_replace(
+        '/(CREATE\s+DATABASE\s+)\w+/i',                 '$1`' . DB_NAME . '`', $sql);
+    $sql = preg_replace(
+        '/(USE\s+)\w+\s*;/i',                           '$1`' . DB_NAME . '`;', $sql);
+
+    // Open a server-level connection (no dbname) so we can CREATE DATABASE.
     $rootPdo = new PDO(
         'mysql:host=' . DB_HOST . ';charset=utf8mb4',
         DB_USER, DB_PASS,
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
     );
     $rootPdo->exec($sql);
-    $log[] = '✔ Schema created and seeded with categories + products.';
+    $log[] = '✔ Database `' . DB_NAME . '` created and seeded with categories + products.';
 
     // Re-connect to the new DB to seed users
     $pdo2 = new PDO(
