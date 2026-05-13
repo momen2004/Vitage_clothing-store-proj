@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1a1a"/>
+      <stop offset="1" stop-color="#3a3a3a"/>
+    </linearGradient>
+    <pattern id="p" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(255,255,255,0.05)" stroke-width="2"/>
+    </pattern>
+  </defs>
+  <rect width="400" height="500" fill="url(#g)"/>
+  <rect width="400" height="500" fill="url(#p)"/>
+  <rect x="20" y="20" width="360" height="460" fill="none" stroke="rgba(251,243,226,0.35)" stroke-width="1"/>
+  <rect x="28" y="28" width="344" height="444" fill="none" stroke="rgba(251,243,226,0.18)" stroke-width="1"/>
+  <text x="200" y="240" font-family="Georgia, serif" font-style="italic" font-size="28" fill="#fbf3e2" text-anchor="middle">Vinyl Records Tee</text>
+  <text x="200" y="280" font-family="Courier New, monospace" font-size="12" fill="rgba(251,243,226,0.7)" text-anchor="middle" letter-spacing="3">VITAGE COLLECTION</text>
+  <circle cx="200" cy="350" r="32" fill="none" stroke="rgba(251,243,226,0.4)" stroke-width="1"/>
+  <text x="200" y="356" font-family="Georgia, serif" font-size="22" font-style="italic" fill="rgba(251,243,226,0.7)" text-anchor="middle">V</text>
+</svg>
