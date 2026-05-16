@@ -50,6 +50,8 @@ include __DIR__ . '/includes/header.php';
                 <input name="password" type="password" required>
             </div>
             <button class="btn" type="submit">Sign in</button>
+            <a href="<?= url('forgot_password.php') ?>"
+               style="margin-left:1rem;font-family:var(--type);font-size:.85rem">Forgot password?</a>
         </form>
 
         <p style="margin-top:2rem;font-family:var(--type);font-size:.78rem;color:var(--muted)">

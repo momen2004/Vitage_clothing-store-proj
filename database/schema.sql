@@ -109,6 +109,21 @@ CREATE TABLE order_items (
 ) ENGINE=InnoDB;
 
 -- -------------------------------------------------------------
+-- Password reset tokens
+-- -------------------------------------------------------------
+CREATE TABLE password_resets (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    user_id     INT NOT NULL,
+    token       CHAR(64) NOT NULL UNIQUE,
+    expires_at  DATETIME NOT NULL,
+    used_at     DATETIME DEFAULT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_pr_user FOREIGN KEY (user_id)
+        REFERENCES users(id) ON DELETE CASCADE,
+    INDEX (user_id)
+) ENGINE=InnoDB;
+
+-- -------------------------------------------------------------
 -- Activity logs (analytics)
 -- -------------------------------------------------------------
 CREATE TABLE activity_logs (

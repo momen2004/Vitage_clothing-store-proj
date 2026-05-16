@@ -177,6 +177,29 @@ function cart_subtotal(array $items): float {
 }
 
 // ---------------------------------------------------------------
+// Password resets
+// ---------------------------------------------------------------
+function ensure_password_reset_table(): void {
+    global $pdo;
+    static $checked = false;
+    if ($checked) return;
+    $pdo->exec(
+        'CREATE TABLE IF NOT EXISTS password_resets (
+            id          INT AUTO_INCREMENT PRIMARY KEY,
+            user_id     INT NOT NULL,
+            token       CHAR(64) NOT NULL UNIQUE,
+            expires_at  DATETIME NOT NULL,
+            used_at     DATETIME DEFAULT NULL,
+            created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_pr_user FOREIGN KEY (user_id)
+                REFERENCES users(id) ON DELETE CASCADE,
+            INDEX (user_id)
+        ) ENGINE=InnoDB'
+    );
+    $checked = true;
+}
+
+// ---------------------------------------------------------------
 // Misc
 // ---------------------------------------------------------------
 function slugify(string $text): string {
