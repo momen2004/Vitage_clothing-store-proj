@@ -23,22 +23,67 @@ if ($isEdit) {
 $categories = $pdo->query('SELECT * FROM categories ORDER BY name')->fetchAll();
 
 function save_upload(string $field, string $current): string {
-    if (empty($_FILES[$field]) || $_FILES[$field]['error'] === UPLOAD_ERR_NO_FILE) return $current;
-    if ($_FILES[$field]['error'] !== UPLOAD_ERR_OK) return $current;
+    // Field not present at all in the request (form didn't post multipart).
+    if (!isset($_FILES[$field])) return $current;
 
+    $err = (int)$_FILES[$field]['error'];
+
+    // No file chosen — keep whatever's already on the row.
+    if ($err === UPLOAD_ERR_NO_FILE) return $current;
+
+    // PHP rejected the upload before our code ran. Translate to a useful message.
+    if ($err !== UPLOAD_ERR_OK) {
+        $messages = [
+            UPLOAD_ERR_INI_SIZE   => 'File is larger than upload_max_filesize in php.ini.',
+            UPLOAD_ERR_FORM_SIZE  => 'File is larger than MAX_FILE_SIZE in the form.',
+            UPLOAD_ERR_PARTIAL    => 'The upload was interrupted — try again.',
+            UPLOAD_ERR_NO_TMP_DIR => 'Server has no tmp directory configured for uploads.',
+            UPLOAD_ERR_CANT_WRITE => 'Server could not write the file to disk.',
+            UPLOAD_ERR_EXTENSION  => 'A PHP extension blocked the upload.',
+        ];
+        throw new RuntimeException(
+            'Image upload failed (' . $field . '): ' . ($messages[$err] ?? 'Unknown error #' . $err)
+        );
+    }
+
+    // Verify extension AND that the file is actually an image.
     $allowed = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg',
                 'png' => 'image/png',  'webp' => 'image/webp', 'gif' => 'image/gif'];
     $ext = strtolower(pathinfo($_FILES[$field]['name'], PATHINFO_EXTENSION));
-    if (!isset($allowed[$ext])) throw new RuntimeException('Unsupported image format.');
+    if (!isset($allowed[$ext])) {
+        throw new RuntimeException('Unsupported image format on ' . $field . ' (use JPG, PNG, WEBP or GIF).');
+    }
+    $info = @getimagesize($_FILES[$field]['tmp_name']);
+    if ($info === false) {
+        throw new RuntimeException('Uploaded ' . $field . ' is not a valid image.');
+    }
 
+    // Make sure the destination directory exists and is writable.
     $dir = __DIR__ . '/../uploads/products';
-    if (!is_dir($dir)) mkdir($dir, 0775, true);
+    if (!is_dir($dir) && !@mkdir($dir, 0775, true)) {
+        throw new RuntimeException('Could not create uploads/products/ — check folder permissions.');
+    }
+    if (!is_writable($dir)) {
+        throw new RuntimeException(
+            'uploads/products/ is not writable by the web server. ' .
+            'On Linux run: chmod -R 775 uploads/  (and chown to the Apache user if needed).'
+        );
+    }
+
     $fname = 'p_' . bin2hex(random_bytes(6)) . '.' . $ext;
     $dest  = $dir . '/' . $fname;
     if (!move_uploaded_file($_FILES[$field]['tmp_name'], $dest)) {
-        throw new RuntimeException('Upload failed.');
+        throw new RuntimeException('move_uploaded_file failed for ' . $field . '.');
     }
     return 'uploads/products/' . $fname;
+}
+
+// Detect the case where php.ini's post_max_size was exceeded — every $_POST
+// and $_FILES entry is empty even though REQUEST_METHOD is POST.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && empty($_FILES)
+    && ($cl = (int)($_SERVER['CONTENT_LENGTH'] ?? 0)) > 0) {
+    $errors[] = 'The upload was too large (' . round($cl / 1048576, 1) .
+        ' MB) — raise post_max_size and upload_max_filesize in php.ini.';
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
