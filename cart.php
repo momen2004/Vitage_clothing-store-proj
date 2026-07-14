@@ -3,7 +3,7 @@ require_once __DIR__ . '/includes/functions.php';
 require_login();
 
 // "Clear all" is the only server-side action left; quantity edits & removals
-// now happen via /api/update_cart.php in real time.
+// now happen via /api/update_cart.php in real time. //UPdates 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'clear') {
     csrf_verify();
     $pdo->prepare(
